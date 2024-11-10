@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "id": "9b02500f-ad89-401a-aee9-3dd7e5ad2aeb",
+      "username": "admin",
+      "password": "admin",
+      "isGuest": false
+    },
+    {
+      "id": "ee169c59-be96-46e5-bb89-18e5802da21d",
+      "username": "johnemman",
+      "password": "johnemman",
+      "isGuest": false
+    },
+    {
+      "id": "f1e6e86d-40d6-4fe3-95b6-8da06b52d15c",
+      "username": "emman",
+      "password": "emman",
+      "isGuest": false
+    }
+  ]
+}
