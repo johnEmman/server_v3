@@ -15,9 +15,9 @@ const port = process.env.PORT || 4000;
 // Create HTTP server and initialize WebSocket (Socket.io)
 const server = https.createServer(
   {
-    key: fs.readFileSync(path.resolve(__dirname, "../../certs/private.key")), // Adjust path if certs are elsewhere
+    key: fs.readFileSync(path.resolve(__dirname, "../../ssl_certs/private.key")), // Adjust path if certs are elsewhere
     cert: fs.readFileSync(
-      path.resolve(__dirname, "../../certs/certificate.crt")
+      path.resolve(__dirname, "../../ssl_certs/certificate.crt")
     ),
   },
   app

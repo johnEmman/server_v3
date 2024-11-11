@@ -17,6 +17,30 @@
       "username": "emman",
       "password": "emman",
       "isGuest": false
+    },
+    {
+      "id": "2a037bd9-3025-42e8-8ca8-79ff4b427489",
+      "username": "hello",
+      "password": "world",
+      "isGuest": false
+    },
+    {
+      "id": "5d0500b3-2691-4728-8c01-fccbe8b04c1d",
+      "username": "daasdasd",
+      "password": "asdasdas",
+      "isGuest": false
+    },
+    {
+      "id": "e5aacc6e-1dec-4594-b232-977e2fcb4fce",
+      "username": "eyy",
+      "password": "eyyy",
+      "isGuest": false
+    },
+    {
+      "id": "93e5666e-acf0-416e-9a21-2814faf99e8f",
+      "username": "jecallora",
+      "password": "qwe123qwe",
+      "isGuest": false
     }
   ]
 }

@@ -1,68 +1,105 @@
-import { Request, Response } from "express";
-import socketIo from "socket.io";
+import { Server, Socket } from "socket.io";
 
-let io: socketIo.Server;
-let rooms: { [key: string]: string[] } = {}; // Store rooms and user ids
+interface Room {
+  host: string;
+  guests: string[];
+  invitations: Set<string>;
+}
 
-export const initWebRTC = (socketServer: socketIo.Server) => {
-  io = socketServer;
-};
+const rooms: Record<string, Room> = {}; // Store rooms with host and guest list
+const userSockets: Record<string, string> = {}; // Map user IDs to socket IDs
 
-// Create a room (Person A)
-export const createRoom = (req: Request, res: Response) => {
-  const { roomId, userId } = req.body; // Person A's ID
-  console.log(`Room created by ${userId} with roomId: ${roomId}`);
+export function initWebRTC(io: Server) {
+  io.on("connection", (socket: Socket) => {
+    console.log("User connected:", socket.id);
 
-  if (rooms[roomId]) {
-    return res.status(400).json({ message: "Room already exists." });
-  }
+    // Register user socket ID
+    socket.on("register", (userId: string) => {
+      userSockets[userId] = socket.id;
+    });
 
-  // Add the creator (Person A) to the room
-  rooms[roomId] = [userId];
-  res.status(200).json({ message: "Room created", roomId });
-};
+    // Create a room (hosted by Person A)
+    socket.on("create-room", ({ roomId, userId }) => {
+      if (rooms[roomId]) {
+        socket.emit("error", { message: "Room already exists" });
+      } else {
+        rooms[roomId] = { host: userId, guests: [], invitations: new Set() };
+        socket.join(roomId);
+        socket.emit("room-created", { roomId });
+        console.log(`Room ${roomId} created by ${userId}`);
+      }
+    });
 
-// Join a room (Person B)
-export const joinRoom = (req: Request, res: Response) => {
-  const { roomId, userId } = req.body; // Person B's ID
-  console.log(`${userId} is trying to join room: ${roomId}`);
+    // Invite a user to the room
+    socket.on("invite-user", ({ roomId, userId, inviteeId }) => {
+      const room = rooms[roomId];
+      if (room && room.host === userId) {
+        room.invitations.add(inviteeId);
+        const inviteeSocketId = userSockets[inviteeId];
+        if (inviteeSocketId) {
+          io.to(inviteeSocketId).emit("invited-to-room", { roomId });
+          console.log(
+            `${inviteeId} invited to room ${roomId} by host ${userId}`
+          );
+        }
+      } else {
+        socket.emit("error", { message: "Only the host can invite users" });
+      }
+    });
 
-  if (!rooms[roomId]) {
-    return res.status(404).json({ message: "Room not found." });
-  }
+    // Request to join a room (for users who were not invited)
+    socket.on("request-join", ({ roomId, userId }) => {
+      const room = rooms[roomId];
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+      } else if (room.invitations.has(userId) || room.host === userId) {
+        // Allow user to join if invited or if they are the host
+        socket.join(roomId);
+        room.guests.push(userId);
+        io.to(roomId).emit("user-joined", { userId });
+        console.log(`${userId} joined room ${roomId}`);
+      } else {
+        // Send join request to the host for approval
+        const hostSocketId = userSockets[room.host];
+        if (hostSocketId) {
+          io.to(hostSocketId).emit("join-request", { roomId, userId });
+          console.log(`${userId} requested to join room ${roomId}`);
+        }
+      }
+    });
 
-  // Check if the user is already in the room
-  if (rooms[roomId].includes(userId)) {
-    return res.status(400).json({ message: "User already in room." });
-  }
+    // Approve or deny join request
+    socket.on("respond-join-request", ({ roomId, userId, approved }) => {
+      const room = rooms[roomId];
+      if (room && room.host === userSockets[userId]) {
+        const guestSocketId = userSockets[userId];
+        if (approved && guestSocketId) {
+          room.guests.push(userId);
+          io.to(guestSocketId).emit("join-approved", { roomId });
+          io.to(roomId).emit("user-joined", { userId });
+          console.log(`${userId} joined room ${roomId}`);
+        } else {
+          io.to(guestSocketId).emit("join-denied", { roomId });
+          console.log(`Join request denied for ${userId} in room ${roomId}`);
+        }
+      }
+    });
 
-  // Add Person B to the room
-  rooms[roomId].push(userId);
+    // Handle signaling for WebRTC
+    socket.on("signal", ({ roomId, signalData }) => {
+      socket.to(roomId).emit("signal", signalData);
+    });
 
-  // Notify all users in the room that a new user has joined
-  io.to(roomId).emit("user-joined", { userId });
-
-  res.status(200).json({ message: "Joined room", roomId });
-};
-
-// WebRTC signaling (offer, answer, ice-candidate) for users in a room
-export const handleOffer = (req: Request, res: Response) => {
-  const { offer, roomId, targetUserId } = req.body;
-  console.log(`Sending offer to ${targetUserId} in room ${roomId}`);
-  io.to(targetUserId).emit("offer", { offer, roomId });
-  res.status(200).send({ message: "Offer sent" });
-};
-
-export const handleAnswer = (req: Request, res: Response) => {
-  const { answer, roomId, targetUserId } = req.body;
-  console.log(`Sending answer to ${targetUserId} in room ${roomId}`);
-  io.to(targetUserId).emit("answer", { answer, roomId });
-  res.status(200).send({ message: "Answer sent" });
-};
-
-export const handleIceCandidate = (req: Request, res: Response) => {
-  const { candidate, roomId, targetUserId } = req.body;
-  console.log(`Sending ICE candidate to ${targetUserId} in room ${roomId}`);
-  io.to(targetUserId).emit("ice-candidate", { candidate, roomId });
-  res.status(200).send({ message: "ICE candidate sent" });
-};
+    // Handle disconnect and clean up
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.id);
+      for (const roomId in rooms) {
+        const room = rooms[roomId];
+        if (room.host === socket.id || room.guests.includes(socket.id)) {
+          io.to(roomId).emit("user-left", { userId: socket.id });
+          delete rooms[roomId];
+        }
+      }
+    });
+  });
+}

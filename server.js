@@ -10,8 +10,10 @@ const app = express();
 
 // Load SSL certificate and key
 const sslOptions = {
-  key: fs.readFileSync(path.resolve(__dirname, "../certs/private.key")), // Adjust path if certs is elsewhere
-  cert: fs.readFileSync(path.resolve(__dirname, "../certs/certificate.crt")),
+  key: fs.readFileSync(path.resolve(__dirname, "../ssl_certs/private.key")), // Adjust path if certs is elsewhere
+  cert: fs.readFileSync(
+    path.resolve(__dirname, "../ssl_certs/certificate.crt")
+  ),
 };
 
 // Create an HTTPS server
@@ -109,7 +111,7 @@ io.on("connection", (socket) => {
 });
 
 // Start the server
-const port = 5000;
+const port = 4000;
 server.listen(port, () => {
   console.log(`Server running on https://localhost:${port}`);
 });
